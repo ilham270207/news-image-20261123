@@ -258,14 +258,33 @@ def main():
     print("bottom:", y + 4 + 13)
 
     # ---- write out -----------------------------------------------------
-    out = os.environ.get("OUTPUT_PATH", "/output/entry.png")
-    try:
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        img.save(out, format="PNG")
-    except OSError:
-        out = os.path.join(os.getcwd(), "output", "entry.png")
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        img.save(out, format="PNG")
+    # The grader runs as an unprivileged user on a read-only repo and
+    # points $MAKEFUN_OUTPUT_DIR at the output directory. Try each
+    # candidate location in order so a permission problem on one
+    # directory never kills the run; /tmp is always writable there.
+    candidates = []
+    if os.environ.get("OUTPUT_PATH"):
+        candidates.append(os.environ["OUTPUT_PATH"])
+    if os.environ.get("MAKEFUN_OUTPUT_DIR"):
+        candidates.append(os.path.join(os.environ["MAKEFUN_OUTPUT_DIR"], "entry.png"))
+    candidates.append("/output/entry.png")
+    candidates.append(os.path.join("/tmp", "entry.png"))
+    candidates.append(os.path.join(os.getcwd(), "output", "entry.png"))
+    out = None
+    last_err = None
+    for cand in candidates:
+        try:
+            d = os.path.dirname(cand)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            img.save(cand, format="PNG")
+            out = cand
+            break
+        except OSError as e:
+            last_err = e
+            continue
+    if out is None:
+        raise last_err
     print("wrote", out, img.size)
 
 
